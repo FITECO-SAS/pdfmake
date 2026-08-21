@@ -1,8 +1,9 @@
 {
   "name": "@myfiteco/pdfmake",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "description": "Client/server side PDF printing in pure JavaScript",
   "main": "js/index.js",
+  "types": "index.d.ts",
   "esnext": "src/index.js",
   "browser": "build/pdfmake.js",
   "directories": {

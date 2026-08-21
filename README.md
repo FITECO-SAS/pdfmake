@@ -77,6 +77,33 @@ Typical caller (keep this on the document definition, not in the engine):
 - `dontBreakRows: true`: keep table rows together.
 - `isFooter: true`: pin the block to the bottom of that last page.
 
+## TypeScript
+
+This package ships its own types (`index.d.ts`). In a consumer library:
+
+```ts
+import pdfmake from '@myfiteco/pdfmake';
+import type { TDocumentDefinitions, Content } from '@myfiteco/pdfmake';
+// or: import type { Content } from '@myfiteco/pdfmake/interfaces';
+
+const dd: TDocumentDefinitions = {
+  content: [
+    { text: 'Lignes...' },
+    {
+      isFooter: true,
+      id: 'footer-page',
+      table: {
+        widths: ['100%'],
+        dontBreakRows: true,
+        body: [[{ text: 'Banque / TVA' }]],
+      },
+    },
+  ],
+};
+
+pdfmake.createPdf(dd);
+```
+
 ## Documentation
 
 **Documentation URL: https://pdfmake.github.io/docs/**

@@ -3,6 +3,7 @@
 ## 0.3.11 (MyFiteco)
 
 - Ported custom `isFooter: true` from `@myfiteco/pdfmake@0.2.4`: stick a content node to the bottom of the usable page area (not the pdfmake `footer` callback). See README.
+- Added TypeScript types (`index.d.ts`, `interfaces.d.ts`) including `isFooter`.
 
 ## 0.3.11 - 2026-06-12
 
