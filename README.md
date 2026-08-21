@@ -40,6 +40,43 @@ Check out [the playground](http://bpampuch.github.io/pdfmake/playground.html) an
 * helper methods for opening/printing/downloading the generated PDF,
 * setting of PDF metadata (e.g. author, subject).
 
+## MyFiteco: `isFooter` (not upstream)
+
+This fork (`@myfiteco/pdfmake`) reads a custom node flag `isFooter: true` in the layout engine. It is **not** an official pdfmake option and is unrelated to the document `footer` callback (page numbers, etc.).
+
+When a content node has `isFooter: true`:
+
+1. its height is measured;
+2. if it does not fit in the remaining usable height of the current page, it is moved to the next page;
+3. it is then stuck to the **bottom of the usable area** (above the pdfmake pagination footer).
+
+Without `isFooter`, the same node stays immediately below the previous content.
+
+Typical caller (keep this on the document definition, not in the engine):
+
+```js
+{
+  content: [
+    { text: 'Lignes...' },
+    {
+      isFooter: true,
+      id: 'footer-page',
+      table: {
+        widths: ['100%'],
+        dontBreakRows: true,
+        body: [[{ text: 'Banque / TVA / clause / infos société' }]],
+      },
+    },
+  ],
+  pageBreakBefore: (currentNode) =>
+    currentNode.id === 'footer-page' && currentNode.pageNumbers.length === 2,
+}
+```
+
+- `pageBreakBefore` + `id: 'footer-page'`: if the block would span two pages, start it on a new page.
+- `dontBreakRows: true`: keep table rows together.
+- `isFooter: true`: pin the block to the bottom of that last page.
+
 ## Documentation
 
 **Documentation URL: https://pdfmake.github.io/docs/**

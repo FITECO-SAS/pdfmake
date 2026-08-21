@@ -8,6 +8,7 @@ import Line from './Line';
 import { isString, isValue, isNumber } from './helpers/variableType';
 import { stringifyNode, getNodeId } from './helpers/node';
 import { pack, offsetVector, convertToDynamicContent } from './helpers/tools';
+import cloneDeep from 'clone-deep';
 import TextInlines from './TextInlines';
 import StyleContextStack from './StyleContextStack';
 
@@ -509,35 +510,11 @@ class LayoutBuilder {
 				this.writer.context().moveToRelative(relPosition.x || 0, relPosition.y || 0);
 			}
 
-			if (node.stack) {
-				this.processVerticalContainer(node);
-			} else if (node.section) {
-				this.processSection(node);
-			} else if (node.columns) {
-				this.processColumns(node);
-			} else if (node.ul) {
-				this.processList(false, node);
-			} else if (node.ol) {
-				this.processList(true, node);
-			} else if (node.table) {
-				this.processTable(node);
-			} else if (node.text !== undefined) {
-				this.processLeaf(node);
-			} else if (node.toc) {
-				this.processToc(node);
-			} else if (node.image) {
-				this.processImage(node);
-			} else if (node.svg) {
-				this.processSVG(node);
-			} else if (node.canvas) {
-				this.processCanvas(node);
-			} else if (node.qr) {
-				this.processQr(node);
-			} else if (node.attachment) {
-				this.processAttachment(node);
-			} else if (!node._span) {
-				throw new Error(`Unrecognized document structure: ${stringifyNode(node)}`);
+			if (node.isFooter) {
+				this.moveToBottomOfPage(node);
 			}
+
+			this.processNodeContent(node);
 
 			if (absPosition || relPosition) {
 				this.writer.context().endDetachedBlock();
@@ -558,6 +535,118 @@ class LayoutBuilder {
 		if (prevTop !== undefined) {
 			// TODO: for vertical alignment and does not work (at least) when page break in node
 			node.__height = this.writer.context().getCurrentPosition().top - prevTop;
+		}
+	}
+
+	/**
+	 * Runs the processor matching the type of the node
+	 *
+	 * @param {object} node
+	 */
+	processNodeContent(node) {
+		if (node.stack) {
+			this.processVerticalContainer(node);
+		} else if (node.section) {
+			this.processSection(node);
+		} else if (node.columns) {
+			this.processColumns(node);
+		} else if (node.ul) {
+			this.processList(false, node);
+		} else if (node.ol) {
+			this.processList(true, node);
+		} else if (node.table) {
+			this.processTable(node);
+		} else if (node.text !== undefined) {
+			this.processLeaf(node);
+		} else if (node.toc) {
+			this.processToc(node);
+		} else if (node.image) {
+			this.processImage(node);
+		} else if (node.svg) {
+			this.processSVG(node);
+		} else if (node.canvas) {
+			this.processCanvas(node);
+		} else if (node.qr) {
+			this.processQr(node);
+		} else if (node.attachment) {
+			this.processAttachment(node);
+		} else if (!node._span) {
+			throw new Error(`Unrecognized document structure: ${stringifyNode(node)}`);
+		}
+	}
+
+	/**
+	 * Custom option (not supported by upstream pdfmake), see `isFooter` in README.
+	 *
+	 * Sticks the node to the bottom of the usable area of the page (above the page footer),
+	 * moving to the next page first when the node doesn't fit in the remaining space.
+	 *
+	 * @param {object} node
+	 */
+	moveToBottomOfPage(node) {
+		let context = this.writer.context();
+		// There is no page bottom to stick to when no page is started yet
+		// or when the height is unlimited (inside an unbreakable block)
+		if (context.getCurrentPage() === null || !isNumber(context.availableHeight)) {
+			return;
+		}
+
+		let blockHeight = this.measureNodeHeight(node);
+		// The top margin has already been consumed by applyMargins, the bottom one has still to be reserved
+		let bottomMargin = node._margin ? node._margin[3] : 0;
+
+		let availableHeight = context.availableHeight;
+		if (availableHeight < blockHeight + bottomMargin) {
+			this.writer.moveToNextPage(node.pageOrientation);
+			availableHeight = this.writer.context().availableHeight;
+		}
+
+		this.writer.context().moveDown(Math.max(0, availableHeight - blockHeight - bottomMargin));
+	}
+
+	/**
+	 * Measures the height of a node by laying out a copy of it far above the page.
+	 *
+	 * Nothing is kept from this layout: the produced items and the context are restored,
+	 * and the copy is dropped, so the node itself can then be processed as usual.
+	 *
+	 * @param {object} node
+	 * @returns {number} height of the node in the current context
+	 */
+	measureNodeHeight(node) {
+		const measurementY = -800;
+
+		let context = this.writer.context();
+		let page = context.getCurrentPage();
+		let contextBackup = {
+			x: context.x,
+			y: context.y,
+			page: context.page,
+			availableWidth: context.availableWidth,
+			availableHeight: context.availableHeight
+		};
+		let itemsBackup = page.items.slice();
+		let pagesCount = context.pages.length;
+		let linearNodeListBackup = this.linearNodeList;
+		let verticalAlignmentItemsCount = this.verticalAlignmentItemStack.length;
+
+		// The copy must not leak into the page break calculation
+		this.linearNodeList = [];
+		// Only 'y' is moved, so that 'availableWidth' of the current context
+		// is kept (a measured node can be nested in a column or in a table cell)
+		context.moveTo(null, measurementY);
+
+		try {
+			this.processNodeContent(cloneDeep(node));
+			return context.y - measurementY;
+		} finally {
+			this.linearNodeList = linearNodeListBackup;
+			this.verticalAlignmentItemStack.length = verticalAlignmentItemsCount;
+			page.items.length = 0;
+			addAll(page.items, itemsBackup);
+			context.pages.length = pagesCount;
+			context.backgroundLength.length = pagesCount;
+			Object.assign(context, contextBackup);
 		}
 	}
 

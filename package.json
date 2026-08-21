@@ -1,5 +1,5 @@
 {
-  "name": "pdfmake",
+  "name": "@myfiteco/pdfmake",
   "version": "0.3.11",
   "description": "Client/server side PDF printing in pure JavaScript",
   "main": "js/index.js",
@@ -9,6 +9,7 @@
     "test": "tests"
   },
   "dependencies": {
+    "clone-deep": "^4.0.1",
     "linebreak": "^1.1.0",
     "pdfkit": "^0.19.1",
     "xmldoc": "^2.0.3"

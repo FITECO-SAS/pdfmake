@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.11 (MyFiteco)
+
+- Ported custom `isFooter: true` from `@myfiteco/pdfmake@0.2.4`: stick a content node to the bottom of the usable page area (not the pdfmake `footer` callback). See README.
+
 ## 0.3.11 - 2026-06-12
 
 - Updated pdfkit to 0.19.1 (fixed RGB JPEG embedded as DeviceGray, bug introduced in 0.19.0)
