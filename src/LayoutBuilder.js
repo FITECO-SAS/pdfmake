@@ -37,27 +37,40 @@ function unwrapFooterMeasureNode(node) {
 	return node;
 }
 
-function stripDontBreakRowsForMeasure(node) {
+function stripMeasureConstraints(node) {
 	if (!node || typeof node !== 'object') {
 		return;
 	}
-	if (node.table && node.table.dontBreakRows) {
-		node.table.dontBreakRows = false;
+	if (node.unbreakable) {
+		node.unbreakable = false;
 	}
-	if (node.table && Array.isArray(node.table.body)) {
-		node.table.body.forEach(row => {
-			if (Array.isArray(row)) {
-				row.forEach(stripDontBreakRowsForMeasure);
-			}
-		});
+	if (node.table) {
+		if (node.table.dontBreakRows) {
+			node.table.dontBreakRows = false;
+		}
+		if (node.table.headerRows) {
+			node.table.headerRows = 0;
+		}
+		if (node.table.keepWithHeaderRows) {
+			node.table.keepWithHeaderRows = 0;
+		}
+		if (Array.isArray(node.table.body)) {
+			node.table.body.forEach(row => {
+				if (Array.isArray(row)) {
+					row.forEach(stripMeasureConstraints);
+				}
+			});
+		}
 	}
 	if (Array.isArray(node.stack)) {
-		node.stack.forEach(stripDontBreakRowsForMeasure);
+		node.stack.forEach(stripMeasureConstraints);
 	}
 	if (Array.isArray(node.columns)) {
-		node.columns.forEach(stripDontBreakRowsForMeasure);
+		node.columns.forEach(stripMeasureConstraints);
 	}
 }
+
+const FOOTER_BOTTOM_EPSILON = 1; // pt — avoids floating-point page-break when footer barely fits
 
 /**
  * Layout engine which turns document-definition-object into a set of pages, lines, inlines
@@ -534,6 +547,10 @@ class LayoutBuilder {
 				var verticalAlignmentBegin = this.writer.beginVerticalAlignment(verticalAlignment);
 			}
 
+			if (node.isFooter) {
+				this.moveToBottomOfPage(node);
+			}
+
 			let unbreakable = node.unbreakable;
 			if (unbreakable) {
 				this.writer.beginUnbreakableBlock();
@@ -549,10 +566,6 @@ class LayoutBuilder {
 			if (relPosition) {
 				this.writer.context().beginDetachedBlock();
 				this.writer.context().moveToRelative(relPosition.x || 0, relPosition.y || 0);
-			}
-
-			if (node.isFooter) {
-				this.moveToBottomOfPage(node);
 			}
 
 			this.processNodeContent(node);
@@ -638,13 +651,13 @@ class LayoutBuilder {
 		let bottomMargin = node._margin ? node._margin[3] : 0;
 
 		let availableHeight = context.availableHeight;
-		if (availableHeight < blockHeight + bottomMargin) {
+		if (availableHeight < blockHeight + bottomMargin + FOOTER_BOTTOM_EPSILON) {
 			this.writer.moveToNextPage(node.pageOrientation);
 			availableHeight = this.writer.context().availableHeight;
 			blockHeight = this.measureNodeHeight(measureNode);
 		}
 
-		this.writer.context().moveDown(Math.max(0, availableHeight - blockHeight - bottomMargin));
+		this.writer.context().moveDown(Math.max(0, availableHeight - blockHeight - bottomMargin - FOOTER_BOTTOM_EPSILON));
 	}
 
 	/**
@@ -682,7 +695,7 @@ class LayoutBuilder {
 
 		try {
 			const nodeToMeasure = cloneDeep(node);
-			stripDontBreakRowsForMeasure(nodeToMeasure);
+			stripMeasureConstraints(nodeToMeasure);
 			this.processNodeContent(nodeToMeasure);
 			return context.y - measurementY;
 		} finally {

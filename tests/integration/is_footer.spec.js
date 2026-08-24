@@ -8,9 +8,18 @@ var integrationTestHelper = require('./integrationTestHelper');
 describe('Integration test: isFooter', function () {
 
 	var testHelper = new integrationTestHelper();
+	var FOOTER_BOTTOM_EPSILON = 1;
 
 	var usableBottom = function (sizeName) {
 		return sizes[sizeName][1] - testHelper.MARGINS.bottom;
+	};
+
+	var footerTextBaseline = function (sizeName) {
+		return usableBottom(sizeName) - testHelper.LINE_HEIGHT - FOOTER_BOTTOM_EPSILON;
+	};
+
+	var footerBlockBottom = function (sizeName) {
+		return usableBottom(sizeName) - FOOTER_BOTTOM_EPSILON;
 	};
 
 	var topOfItem = function (node) {
@@ -68,7 +77,7 @@ describe('Integration test: isFooter', function () {
 		// only the two lines, nothing left over from the height measurement
 		assert.equal(pages[0].items.length, 2);
 		assert.equal(pages[0].items[0].item.y, testHelper.MARGINS.top);
-		assert.equal(pages[0].items[1].item.y, usableBottom('A4') - testHelper.LINE_HEIGHT);
+		assert.equal(pages[0].items[1].item.y, footerTextBaseline('A4'));
 	});
 
 	it('keeps the node below the previous content without isFooter', function () {
@@ -98,7 +107,7 @@ describe('Integration test: isFooter', function () {
 		assert.equal(pages.length, 2);
 		assert.equal(pages[0].items.length, linesCount);
 		assert.equal(pages[1].items.length, 1);
-		assert.equal(pages[1].items[0].item.y, usableBottom('A7') - testHelper.LINE_HEIGHT);
+		assert.equal(pages[1].items[0].item.y, footerTextBaseline('A7'));
 	});
 
 	it('sticks a table to the bottom without changing its own layout', function () {
@@ -124,7 +133,7 @@ describe('Integration test: isFooter', function () {
 			return shifts[0];
 		}));
 
-		assert.equal(bottomOfItems(withFooter[0].items).toFixed(4), usableBottom('A4').toFixed(4));
+		assert.equal(bottomOfItems(withFooter[0].items).toFixed(4), footerBlockBottom('A4').toFixed(4));
 	});
 
 	it('sticks a complex footer to the bottom of the last page without an empty intermediate page', function () {
@@ -185,7 +194,62 @@ describe('Integration test: isFooter', function () {
 		}).map(function (node) { return node.item.y; })[0];
 
 		assert.ok(footerTextY > testHelper.MARGINS.top + usableHeight / 2, 'footer should sit in the lower half of the page');
-		assert.equal(footerTextY.toFixed(4), (usableBottom('A4') - testHelper.LINE_HEIGHT).toFixed(4));
+		assert.equal(footerTextY.toFixed(4), footerTextBaseline('A4').toFixed(4));
+	});
+
+	it('sticks to the bottom when isFooter and unbreakable are on the same node', function () {
+		var pages = testHelper.renderPages('A4', {
+			content: [
+				{ text: 'Invoice lines' },
+				{
+					isFooter: true,
+					unbreakable: true,
+					stack: [
+						{ text: 'Payment terms' },
+						{ text: 'Bank / VAT / legal clause / company info' }
+					]
+				}
+			]
+		});
+
+		assert.equal(pages.length, 1);
+		assert.equal(pages[0].items.length, 3);
+		assert.equal(pages[0].items[2].item.y, footerTextBaseline('A4'));
+	});
+
+	it('keeps the footer on the current page when table headerRows would over-estimate height', function () {
+		var usableHeight = sizes.A4[1] - testHelper.MARGINS.top - testHelper.MARGINS.bottom;
+		var linesCount = Math.floor(usableHeight / testHelper.LINE_HEIGHT) - 16;
+		var content = [];
+		for (var i = 0; i < linesCount; i++) {
+			content.push({ text: 'Line ' + i });
+		}
+		content.push({
+			isFooter: true,
+			id: 'pied-page',
+			stack: [{
+				unbreakable: true,
+				stack: [{
+					table: {
+						headerRows: 1,
+						keepWithHeaderRows: 1,
+						dontBreakRows: true,
+						widths: ['100%'],
+						body: [
+							[{ text: 'Raison Sociale', bold: true }],
+							[{ text: 'Conditions de règlement' }],
+							[{ text: 'Mentions légales' }],
+							[{ text: 'Infos société' }]
+						]
+					}
+				}]
+			}]
+		});
+
+		var pages = testHelper.renderPages('A4', { content: content });
+
+		assert.equal(pages.length, 1);
+		assert.ok(pages[0].items.length > linesCount, 'footer should render on the same page');
 	});
 
 	it('sticks the node to the bottom of the last page with pageBreakBefore', function () {
@@ -217,7 +281,7 @@ describe('Integration test: isFooter', function () {
 
 		assert.equal(pages.length, 2);
 		assert.equal(pages[0].items.length, linesCount);
-		assert.equal(bottomOfItems(pages[1].items).toFixed(4), usableBottom('A7').toFixed(4));
+		assert.equal(bottomOfItems(pages[1].items).toFixed(4), footerBlockBottom('A7').toFixed(4));
 	});
 
 });

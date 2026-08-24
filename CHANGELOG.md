@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.14 (MyFiteco)
+
+- `isFooter`: neutralize `unbreakable`, `dontBreakRows`, `headerRows`, and `keepWithHeaderRows` during height measurement (`stripMeasureConstraints`).
+- `isFooter`: run `moveToBottomOfPage` before `beginUnbreakableBlock` so bottom positioning works when both flags are on the same node.
+- `isFooter`: 1 pt epsilon tolerance to avoid floating-point page breaks when the footer barely fits on the current page.
+
 ## 0.3.11 (MyFiteco)
 
 - Ported custom `isFooter: true` from `@myfiteco/pdfmake@0.2.4`: stick a content node to the bottom of the usable page area (not the pdfmake `footer` callback). See README.
