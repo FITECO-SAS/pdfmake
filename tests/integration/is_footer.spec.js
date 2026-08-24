@@ -127,6 +127,67 @@ describe('Integration test: isFooter', function () {
 		assert.equal(bottomOfItems(withFooter[0].items).toFixed(4), usableBottom('A4').toFixed(4));
 	});
 
+	it('sticks a complex footer to the bottom of the last page without an empty intermediate page', function () {
+		var usableHeight = sizes.A4[1] - testHelper.MARGINS.top - testHelper.MARGINS.bottom;
+		var linesCount = Math.ceil(usableHeight / testHelper.LINE_HEIGHT) + 40;
+		var content = [];
+		for (var i = 0; i < linesCount; i++) {
+			content.push({ text: 'Line ' + i });
+		}
+		content.push({
+			isFooter: true,
+			id: 'pied-page',
+			stack: [{
+				unbreakable: true,
+				stack: [{
+					columns: [
+						{
+							width: '50%',
+							table: {
+								widths: ['100%'],
+								dontBreakRows: true,
+								body: [
+									[{ text: 'Bank: FR76 3000 4000 5000 6000 7000 189' }],
+									[{ text: 'VAT: FR 12 345 678 901' }]
+								]
+							}
+						},
+						{
+							width: '50%',
+							table: {
+								widths: ['100%'],
+								dontBreakRows: true,
+								body: [
+									[{ text: 'Legal clause line 1' }],
+									[{ text: 'Legal clause line 2' }]
+								]
+							}
+						}
+					]
+				}, {
+					text: 'Company info — SIRET 123 456 789 00012'
+				}]
+			}]
+		});
+
+		var pages = testHelper.renderPages('A4', { content: content });
+
+		assert.equal(pages.length, 2);
+		assert.ok(pages[0].items.length > 0, 'first page should not be empty');
+		assert.ok(pages[1].items.length > 0, 'last page should contain the footer');
+
+		var footerTextY = pages[1].items.filter(function (node) {
+			if (!node.item.inlines) {
+				return false;
+			}
+			var text = node.item.inlines.map(function (inline) { return inline.text; }).join('');
+			return text.indexOf('Company info') === 0;
+		}).map(function (node) { return node.item.y; })[0];
+
+		assert.ok(footerTextY > testHelper.MARGINS.top + usableHeight / 2, 'footer should sit in the lower half of the page');
+		assert.equal(footerTextY.toFixed(4), (usableBottom('A4') - testHelper.LINE_HEIGHT).toFixed(4));
+	});
+
 	it('sticks the node to the bottom of the last page with pageBreakBefore', function () {
 		var usableHeight = sizes.A7[1] - testHelper.MARGINS.top - testHelper.MARGINS.bottom;
 		var linesCount = Math.floor(usableHeight / testHelper.LINE_HEIGHT) - 1;

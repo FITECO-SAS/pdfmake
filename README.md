@@ -46,7 +46,7 @@ This fork (`@myfiteco/pdfmake`) reads a custom node flag `isFooter: true` in the
 
 When a content node has `isFooter: true`:
 
-1. its height is measured;
+1. its height is measured (measurement ignores `dontBreakRows` and unwraps single-child `unbreakable` stack wrappers so height is not over-estimated);
 2. if it does not fit in the remaining usable height of the current page, it is moved to the next page;
 3. it is then stuck to the **bottom of the usable area** (above the pdfmake pagination footer).
 
@@ -61,21 +61,21 @@ Typical caller (keep this on the document definition, not in the engine):
     {
       isFooter: true,
       id: 'footer-page',
-      table: {
-        widths: ['100%'],
-        dontBreakRows: true,
-        body: [[{ text: 'Banque / TVA / clause / infos société' }]],
-      },
+      stack: [{
+        unbreakable: true,
+        stack: [
+          { columns: [ /* tableaux dontBreakRows, infos société… */ ] },
+        ],
+      }],
     },
   ],
-  pageBreakBefore: (currentNode) =>
-    currentNode.id === 'footer-page' && currentNode.pageNumbers.length === 2,
 }
 ```
 
-- `pageBreakBefore` + `id: 'footer-page'`: if the block would span two pages, start it on a new page.
-- `dontBreakRows: true`: keep table rows together.
-- `isFooter: true`: pin the block to the bottom of that last page.
+- `dontBreakRows: true` on tables: keep table rows together at layout time; height measurement temporarily ignores this flag.
+- Single-child `unbreakable` stack wrappers are unwrapped for measurement only.
+- `isFooter: true`: pin the block to the bottom of the last page.
+- `pageBreakBefore` is **not** recommended by default (it could create an empty intermediate page when combined with a mis-measured footer height). Use it only if you have a specific pagination requirement.
 
 ## TypeScript
 

@@ -18,6 +18,47 @@ function addAll(target, otherArray) {
 	});
 }
 
+function unwrapFooterMeasureNode(node) {
+	let current = node;
+	while (current && Array.isArray(current.stack) && current.stack.length === 1) {
+		const child = current.stack[0];
+		if (child && child.unbreakable && Array.isArray(child.stack)) {
+			current = child;
+			continue;
+		}
+		break;
+	}
+	if (current !== node && Array.isArray(current.stack)) {
+		return {
+			stack: current.stack,
+			positions: []
+		};
+	}
+	return node;
+}
+
+function stripDontBreakRowsForMeasure(node) {
+	if (!node || typeof node !== 'object') {
+		return;
+	}
+	if (node.table && node.table.dontBreakRows) {
+		node.table.dontBreakRows = false;
+	}
+	if (node.table && Array.isArray(node.table.body)) {
+		node.table.body.forEach(row => {
+			if (Array.isArray(row)) {
+				row.forEach(stripDontBreakRowsForMeasure);
+			}
+		});
+	}
+	if (Array.isArray(node.stack)) {
+		node.stack.forEach(stripDontBreakRowsForMeasure);
+	}
+	if (Array.isArray(node.columns)) {
+		node.columns.forEach(stripDontBreakRowsForMeasure);
+	}
+}
+
 /**
  * Layout engine which turns document-definition-object into a set of pages, lines, inlines
  * and vectors ready to be rendered into a PDF
@@ -591,7 +632,8 @@ class LayoutBuilder {
 			return;
 		}
 
-		let blockHeight = this.measureNodeHeight(node);
+		const measureNode = unwrapFooterMeasureNode(node);
+		let blockHeight = this.measureNodeHeight(measureNode);
 		// The top margin has already been consumed by applyMargins, the bottom one has still to be reserved
 		let bottomMargin = node._margin ? node._margin[3] : 0;
 
@@ -599,6 +641,7 @@ class LayoutBuilder {
 		if (availableHeight < blockHeight + bottomMargin) {
 			this.writer.moveToNextPage(node.pageOrientation);
 			availableHeight = this.writer.context().availableHeight;
+			blockHeight = this.measureNodeHeight(measureNode);
 		}
 
 		this.writer.context().moveDown(Math.max(0, availableHeight - blockHeight - bottomMargin));
@@ -635,9 +678,12 @@ class LayoutBuilder {
 		// Only 'y' is moved, so that 'availableWidth' of the current context
 		// is kept (a measured node can be nested in a column or in a table cell)
 		context.moveTo(null, measurementY);
+		context.availableHeight = Infinity;
 
 		try {
-			this.processNodeContent(cloneDeep(node));
+			const nodeToMeasure = cloneDeep(node);
+			stripDontBreakRowsForMeasure(nodeToMeasure);
+			this.processNodeContent(nodeToMeasure);
 			return context.y - measurementY;
 		} finally {
 			this.linearNodeList = linearNodeListBackup;
